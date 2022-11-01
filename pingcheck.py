@@ -36,7 +36,9 @@ DEFAULT_RETRIES = 3
 @click.option('--frequency', '-f', default=DEFAULT_FREQUENCY, help='Frequency in seconds.', show_default=True)
 @click.option('--addresses', '-a', default=DEFAULT_ADDRESSES, help='Addresses to ping.', multiple=True,
               show_default=True)
-@click.option('--diagnostic-addresses', '-a', default=DEFAULT_TRACEROUTE_ADDRESSES, help='Addresses to perform diagnostic traceroute on.', multiple=True,
+@click.option('--diagnostic-addresses', '-da', default=DEFAULT_TRACEROUTE_ADDRESSES, help='Addresses to perform '
+                                                                                          'diagnostic traceroute '
+                                                                                          'on.', multiple=True,
               show_default=True)
 @click.option('--retries', '-r', default=DEFAULT_RETRIES, help='Ping retries count on failure.', show_default=True)
 def pingcheck(frequency, addresses, diagnostic_addresses, retries):
@@ -54,7 +56,7 @@ def pingcheck(frequency, addresses, diagnostic_addresses, retries):
         ping_was_successful = False
         fallbacks_performed = 0
 
-        while (not ping_was_successful) and fallbacks_performed <= retries:
+        while (not ping_was_successful) or fallbacks_performed <= retries:
             next_ping_address = next(hosts_cycle)
             try:
                 logger.info(f"Sending ping to {next_ping_address}")
