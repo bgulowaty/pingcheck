@@ -73,7 +73,10 @@ def pingcheck(frequency, addresses, diagnostic_addresses, retries):
             diagnostic_address = next(traceroute_hosts_cycle)
             logger.warning(f"Network outage detected! Performing treceroute to {diagnostic_address}")
             try:
-                traceroute_result = subprocess.Popen(["traceroute", diagnostic_address],stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+                traceroute_result = subprocess.Popen(["traceroute", diagnostic_address],
+                                                     stdout=subprocess.PIPE,
+                                                     stderr=subprocess.PIPE,
+                                                     universal_newlines=True)
                 message_to_write = jsonpickle.encode({
                     "traceroute": traceroute_result.communicate()[0],
                     "error": traceroute_result.communicate()[1]

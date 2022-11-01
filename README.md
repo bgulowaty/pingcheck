@@ -4,7 +4,7 @@
 
 ```shell
 poetry install
-poetry run sudo python pingcheck.ph
+poetry run sudo python pingcheck.py
 ```
 
 ```shell
