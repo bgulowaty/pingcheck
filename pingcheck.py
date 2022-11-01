@@ -1,66 +1,93 @@
 #!/usr/bin/python
-from icmplib import ping, traceroute
-from itertools import cycle
-import signal
-import sys
-import json
-import time
-import jsonpickle
 import datetime
+import subprocess
+import time
+from itertools import cycle
 
-SECONDS_TO_SLEEP = 20
+import click
+import jsonpickle
+from icmplib import ping
+from loguru import logger
 
-HOSTS = [
-    'google-public-dns-a.google.com',
+DEFAULT_FREQUENCY = 20
+
+DEFAULT_ADDRESSES = [
     'google-public-dns-b.google.com',
     'google.com',
     '1.1.1.1',
-    'wp.pl'
+    'wp.pl',
+    'onet.pl',
+    '208.67.222.222',
+    '208.67.220.220',
+    '1.0.0.1',
 ]
 
-running = True
-network_is_broken = False
+DEFAULT_TRACEROUTE_ADDRESSES = [
+    '1.1.1.1',
+    '208.67.222.222',
+    '208.67.220.220',
+    '1.0.0.1',
+]
+
+DEFAULT_RETRIES = 3
 
 
-def signal_handler(sig, frame):
-    print('Program finished')
-    sys.exit(0)
+@click.command()
+@click.option('--frequency', '-f', default=DEFAULT_FREQUENCY, help='Frequency in seconds.', show_default=True)
+@click.option('--addresses', '-a', default=DEFAULT_ADDRESSES, help='Addresses to ping.', multiple=True,
+              show_default=True)
+@click.option('--diagnostic-addresses', '-a', default=DEFAULT_TRACEROUTE_ADDRESSES, help='Addresses to perform diagnostic traceroute on.', multiple=True,
+              show_default=True)
+@click.option('--retries', '-r', default=DEFAULT_RETRIES, help='Ping retries count on failure.', show_default=True)
+def pingcheck(frequency, addresses, diagnostic_addresses, retries):
+    """This script periodically pings desired addresses and
+    reports failure to .json file as traceroute result or exception description."""
+
+    logger.info(f"Started pinging every {frequency} seconds")
+    logger.info(f"Ping addresses = {addresses}")
+    logger.info(f"Diagnostic addresses = {diagnostic_addresses}")
+
+    hosts_cycle = cycle(addresses)
+    traceroute_hosts_cycle = cycle(diagnostic_addresses)
+
+    while True:
+        ping_was_successful = False
+        fallbacks_performed = 0
+
+        while (not ping_was_successful) and fallbacks_performed <= retries:
+            next_ping_address = next(hosts_cycle)
+            try:
+                logger.info(f"Sending ping to {next_ping_address}")
+                ping_result = ping(next_ping_address, count=1, timeout=5)
+                ping_was_successful = ping_result.is_alive
+            except Exception as e:
+                ping_was_successful = False
+            fallbacks_performed = fallbacks_performed + 1
+
+        if not ping_was_successful:
+            file_name = f"{datetime.datetime.today().isoformat()}.json"
+            diagnostic_address = next(traceroute_hosts_cycle)
+            logger.warning(f"Network outage detected! Performing treceroute to {diagnostic_address}")
+            try:
+                traceroute_result = subprocess.Popen(["traceroute", diagnostic_address],stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+                message_to_write = jsonpickle.encode({
+                    "traceroute": traceroute_result.communicate()[0],
+                    "error": traceroute_result.communicate()[1]
+                }, indent=4)
+            except Exception as e:
+                logger.warning(e)
+                message_to_write = jsonpickle.encode({
+                    "reason": str(e)
+                }, indent=4)
+            with open(file_name, 'w', encoding='utf-8') as f:
+                logger.warning(f"Dumping reason to {file_name}")
+                f.write(message_to_write)
+        else:
+            logger.info(f"Ping successful")
+
+        logger.info(f"Waiting {frequency} seconds...")
+        time.sleep(frequency)
 
 
-signal.signal(signal.SIGINT, signal_handler)
-
-
-def run_service():
-    print(f"Started pinging every {SECONDS_TO_SLEEP} seconds")
-    print(f"HOSTS = {HOSTS}")
-
-    global network_is_broken
-    global running
-    hosts_cycle = cycle(HOSTS)
-
-    while running:
-        next_ping_address = next(hosts_cycle)
-        print(f"Sending ping to {next_ping_address}")
-        ping_result = ping(next_ping_address, privileged=False)
-
-        try:
-            if ping_result.packets_sent != ping_result.packets_received:
-                file_name = f"{datetime.datetime.today().isoformat()}.json"
-                traceroute_address = next(hosts_cycle)
-                print(f"Network outage detected! Performing treceroute to {traceroute_address}")
-                network_is_broken = True
-                traceroute_result = traceroute(traceroute_address, count=1)
-                print(f"Dumping traceroute to {traceroute_address} to file {file_name}")
-                with open(file_name, 'w', encoding='utf-8') as f:
-                    f.write(jsonpickle.encode(traceroute_result, f, indent=4))
-            else:
-                print("Ping successful")
-                network_is_broken = False
-
-            time.sleep(SECONDS_TO_SLEEP)
-        except Exception as e:
-            print("Exception!")
-            print(e)
-
-
-run_service()
+if __name__ == '__main__':
+    pingcheck()
