@@ -57,7 +57,7 @@ def pingcheck(frequency, addresses, diagnostic_addresses, retries):
         ping_was_successful = False
         fallbacks_performed = 0
 
-        while (not ping_was_successful) or fallbacks_performed <= retries:
+        while (not ping_was_successful) and fallbacks_performed <= retries:
             next_ping_address = next(hosts_cycle)
             try:
                 logger.info(f"Sending ping to {next_ping_address}")
