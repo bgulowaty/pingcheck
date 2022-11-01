@@ -48,6 +48,7 @@ def pingcheck(frequency, addresses, diagnostic_addresses, retries):
     logger.info(f"Started pinging every {frequency} seconds")
     logger.info(f"Ping addresses = {addresses}")
     logger.info(f"Diagnostic addresses = {diagnostic_addresses}")
+    logger.info(f"Max ping retries = {retries}")
 
     hosts_cycle = cycle(addresses)
     traceroute_hosts_cycle = cycle(diagnostic_addresses)
@@ -63,6 +64,7 @@ def pingcheck(frequency, addresses, diagnostic_addresses, retries):
                 ping_result = ping(next_ping_address, count=1, timeout=5)
                 ping_was_successful = ping_result.is_alive
             except Exception as e:
+                logger.warning(e)
                 ping_was_successful = False
             fallbacks_performed = fallbacks_performed + 1
 
